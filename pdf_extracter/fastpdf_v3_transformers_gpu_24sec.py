@@ -131,8 +131,8 @@ def read_pdf_result(json_file: str, pages: Union[int, List[int], None] = None) -
 
 def main():
     pdf_path = '2408.08230v1.pdf'
-    start_time = time.perf_counter()
     processor = AdvancedPDFProcessor(pdf_path)
+    start_time = time.perf_counter()
     result = processor.process()
     end_time = time.perf_counter()
     print(f"Total time taken: {end_time - start_time}")
@@ -147,7 +147,7 @@ def main():
 
     page_0 = read_pdf_result(json_file, pages=0)
     print("\nPage 0 content:")
-    print(page_0['Page_0']['full_content'][:200] + "...")  # Print first 200 characters
+    print(page_0['Page_0']['full_content'] + "...")  # Print first 200 characters
 
 if __name__ == "__main__":
     main()

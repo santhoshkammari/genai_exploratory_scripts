@@ -78,7 +78,7 @@ def read_pdf_result(json_file: str) -> Dict[str, Any]:
 
 
 def main():
-    pdf_path = '2408.08230v1.pdf'
+    pdf_path = 'Example PDF.pdf'
     start_time = time.perf_counter()
     processor = PDFProcessor(pdf_path)
     result = processor.process()
@@ -86,7 +86,7 @@ def main():
     print(f"Total time taken: {end_time - start_time:.4f} seconds")
 
     with open("results.json", "w") as f:
-        json.dump(result, f)
+        json.dump(result, f,indent=4)
 
     json_file = 'results.json'
     all_pages = read_pdf_result(json_file)
@@ -96,18 +96,6 @@ def main():
     print(all_pages['Page_0']['full_content'][:200] + "...")  # Print first 200 characters
 
 
-def average_loop_run():
-    x = []
-    for _ in range(10):
-        pdf_path = '2408.08230v1.pdf'
-        start_time = time.perf_counter()
-        processor = PDFProcessor(pdf_path)
-        result = processor.process()
-        end_time = time.perf_counter()
-        print(f"Total time taken: {end_time - start_time:.4f} seconds")
-        x.append(end_time-start_time)
-    print(sum(x)/len(x))
 
 if __name__ == "__main__":
-    # main()
-    average_loop_run()
+    main()
