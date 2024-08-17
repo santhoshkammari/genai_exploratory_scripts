@@ -158,9 +158,14 @@ class PDFExtractor:
 
 
 if __name__ == "__main__":
+    import json
+    data = json.load(open('results.json',encoding="utf-8"))
+    with open("fastpdf_advanced_results.txt","w",encoding='utf-8') as f:
+        f.write(f"{''.join(data['Page_0'][4])}")
+    exit()
     import time
 
-    pdf_path = 'Example PDF.pdf'
+    pdf_path = '2408.08230v1.pdf'
 
     start_time = time.perf_counter()
 
