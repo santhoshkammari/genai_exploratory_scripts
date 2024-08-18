@@ -99,3 +99,6 @@ class FileConverterFactory(BaseModel):
             return ImageFileConverter(self.file_path)
 
 
+if __name__ == '__main__':
+    converter = FileConverterFactory(file_path = "../pdf_extracter_existing/2408.08313v1.pdf").get_converter()
+    converter.save_images('images')
