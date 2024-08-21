@@ -1,0 +1,5 @@
+url: "https://arxiv.org/list/cs/recent?skip=0&show=2000"
+max_papers: 2000
+llm:
+  model: "gemma2:2b"
+  base_url: "http://192.168.162.147:8888"
