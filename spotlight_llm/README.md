@@ -1,4 +1,4 @@
-# Spotlight LLM
+# Spotlight LLM (SIMILAR TO MAC SPOTLIGHT)
 
 Spotlight LLM is a Python application that provides a quick access interface to interact with local language models using Ollama.
 
