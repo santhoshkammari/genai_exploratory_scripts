@@ -11,6 +11,7 @@ from langchain.callbacks.base import BaseCallbackHandler
 import threading
 from opengenai.langchain_ollama import CustomChatOllama
 
+
 # Register QTextCursor for use in signals
 from PyQt5.QtCore import QMetaType
 QMetaType.type("QTextCursor")
