@@ -30,6 +30,7 @@ class SpotlightLLM(QWidget):
         self.current_model = self.models[0]
         self.initUI()
         self.setup_data_directory()
+        self.session_interactions = []  # New list to store all interactions
 
     def initUI(self):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
@@ -147,12 +148,7 @@ class SpotlightLLM(QWidget):
             "query": self.current_query,
             "response": response
         }
-        
-        filename = f"interaction_{self.current_timestamp.replace(':', '-')}.json"
-        filepath = os.path.join(self.data_dir, filename)
-        
-        with open(filepath, 'w') as f:
-            json.dump(interaction_data, f, indent=2)
+        self.session_interactions.append(interaction_data)  # Add to session interactions
 
     def animate_expand(self):
         self.animation = QPropertyAnimation(self, b"geometry")
@@ -166,7 +162,21 @@ class SpotlightLLM(QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
+            self.save_session()  # Save the entire session before closing
             self.close()
+
+    def save_session(self):
+        if self.session_interactions:
+            session_timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            filename = f"session_{session_timestamp}.json"
+            filepath = os.path.join(self.data_dir, filename)
+            
+            with open(filepath, 'w') as f:
+                json.dump(self.session_interactions, f, indent=2)
+
+    def closeEvent(self, event):
+        self.save_session()  # Save the session when the window is closed
+        super().closeEvent(event)
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
