@@ -11,9 +11,11 @@ from langchain.callbacks.base import BaseCallbackHandler
 import threading
 from opengenai.langchain_ollama import CustomChatOllama
 
-
 # Register QTextCursor for use in signals
 from PyQt5.QtCore import QMetaType
+
+from universe_prompt import UP
+
 QMetaType.type("QTextCursor")
 
 class StreamHandler(QObject):
@@ -174,7 +176,10 @@ class SpotlightLLM(QWidget):
         self.result_area.setTextCursor(cursor)
         self.result_area.ensureCursorVisible()
 
+    def add_universe_prompt(self,prompt):
+        return UP + f"\n User Question : {prompt}"
     def get_response(self, prompt):
+        prompt = self.add_universe_prompt(prompt)
         logging.debug(f"Starting response generation in {self.execution_mode} mode")
         stream_handler = StreamHandler(self.save_interaction)
         stream_handler.new_token_signal.connect(self.update_result_area)
