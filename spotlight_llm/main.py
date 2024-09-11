@@ -1,7 +1,10 @@
+import random
+import re
 import sys
 import os
 import json
 import logging
+import time
 from datetime import datetime
 from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QVBoxLayout, QTextEdit, QDesktopWidget, QHBoxLayout, QComboBox
 from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal, QObject
@@ -178,6 +181,38 @@ class SpotlightLLM(QWidget):
 
     def add_universe_prompt(self,prompt):
         return UP + f"\n User Question : {prompt}"
+
+    def format_results_multi_agent(self, results):
+        output = []
+
+        # Add the final answer
+        output.append("Final Answer:\n")
+        output.append(results['final_answer'])
+        output.append("")
+
+        # Add subqueries and their results
+        output.append("Subqueries and WebAnalysis:\n")
+        for i, subquery in enumerate(results['subqueries']):
+            output.append(f"{i + 1}. Subquery: {subquery}\n")
+
+            # Get the corresponding result
+            result = results['subquery_results'][i]
+
+            # output.append("   Web Result:")
+            # output.append(f"   {result['web_result']}")
+
+            output.append("Relevant Information:")
+            output.append(f"{result['relevant_info']}")
+            output.append("")
+
+        return "\n".join(output)
+
+    def filter_prompts(self, prompt):
+        # Add your prompt filtering logic here
+        filtered_prompt = " ".join(prompt.split()[:-1])
+
+        prompt = re.split("User Question : ",filtered_prompt)[-1]
+        return prompt
     def get_response(self, prompt):
         prompt = self.add_universe_prompt(prompt)
         logging.debug(f"Starting response generation in {self.execution_mode} mode")
@@ -189,10 +224,44 @@ class SpotlightLLM(QWidget):
                 llm = Ollama(model=self.current_model)
                 for chunk in llm.stream(prompt):
                     stream_handler.on_llm_new_token(chunk)
-            else:  # GPU mode
-                llm = CustomChatOllama(model=self.current_model, base_url="http://192.168.162.49:8888")
-                for chunk in llm.stream(prompt):
-                    stream_handler.on_llm_new_token(chunk.content)
+            else:
+                if prompt.lower().split()[-1] in ["google"]:
+                    from opengenai.researcher_ai.main.researcher import AiResearcher
+                    from opengenai.researcher_ai.main.llm_service.base import LLMPrompt
+
+                    researcher = AiResearcher()
+                    question = self.filter_prompts(prompt)
+                    print(f"Question: {question}")
+                    content = researcher.get_query_content(query=question,
+                                                           max_urls=2,max_articles=2)
+                    context = "\n".join(content)
+                    runner = LLMPrompt(template="""
+                    You are Expert summarizer, given user question and context understand and provide using context only.
+                    Answer User question: {question}
+                    Context: {context}
+                    """,model=self.current_model,device=self.execution_mode)
+                    for c in runner.stream(question=question,context=context):
+                        stream_handler.on_llm_new_token(c)
+
+                elif prompt.lower().split()[-1] in ["low","medium","high"]:
+                    from opengenai.researcher_ai import MultiAgentQueryOrchestrator
+                    processor = MultiAgentQueryOrchestrator(
+                        response_level=prompt.lower().split()[-1],
+                        device=self.execution_mode
+                    )
+                    filtered_prompt = self.filter_prompts(prompt)
+                    processor.process_query(filtered_prompt)
+                    results = self.format_results_multi_agent(processor.results)
+                    delays = [0.0015, 0.0005, 0.0025]
+                    for chunk in results:  # Split the results into words
+                        time.sleep(random.choice(delays))# Add a small delay between each word
+                        stream_handler.on_llm_new_token(chunk)
+
+                else:
+                    # GPU mode
+                    llm = CustomChatOllama(model=self.current_model, base_url="http://192.168.162.49:8888")
+                    for chunk in llm.stream(prompt):
+                        stream_handler.on_llm_new_token(chunk.content)
 
             stream_handler.on_llm_end(None)
         except Exception as e:
@@ -254,7 +323,8 @@ class SpotlightLLM(QWidget):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = SpotlightLLM(
-        execution_mode="Local"
+        execution_mode="GPU",
+        models=["qwen2:7b-instruct"]
     )
     ex.show()
     sys.exit(app.exec_())
