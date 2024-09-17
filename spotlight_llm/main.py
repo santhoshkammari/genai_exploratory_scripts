@@ -7,17 +7,14 @@ import logging
 import time
 import os
 
-from langchain_ollama import ChatOllama
-
 os.environ['TF_ENABLE_ONEDNN_OPTS']='0'
 from datetime import datetime
 from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QVBoxLayout, QTextEdit, QDesktopWidget, QHBoxLayout, QComboBox
 from PyQt5.QtCore import Qt, QPropertyAnimation, QEasingCurve, QRect, pyqtSignal, QObject
 from PyQt5.QtGui import QPainter, QColor, QFont, QTextCursor
 from langchain_community.llms import Ollama
-from langchain.callbacks.base import BaseCallbackHandler
+
 import threading
-# from ollama_fix import CustomChatOllama
 from pyopengenai import CustomChatOllama
 # Register QTextCursor for use in signals
 from PyQt5.QtCore import QMetaType
@@ -220,6 +217,22 @@ class SpotlightLLM(QWidget):
 
         prompt = re.split("User Question : ",filtered_prompt)[-1]
         return prompt
+
+    def get_context_version1(self, prompt=None, question=None):
+        from pyopengenai.researcher_ai.main.researcher import AiResearcher
+
+        search_provider = prompt.lower().split()[-1]
+        researcher = AiResearcher(search_provider=search_provider)
+        content, urls = researcher.get_query_content(query=question,
+                                                     max_urls=2, max_articles=2,
+                                                     return_urls=True)
+        return content,urls
+
+    def get_context_version2(self,question=None):
+        from pyopengenai.query_based_content_retrieval import query_based_content_retrieval
+        content,urls = query_based_content_retrieval(query=question,topk=25,
+                                                     return_urls=True)
+        return content,urls
     def get_response(self, prompt):
         prompt = self.add_universe_prompt(prompt)
         logging.debug(f"Starting response generation in {self.execution_mode} mode")
@@ -234,17 +247,16 @@ class SpotlightLLM(QWidget):
             else:
                 raise ValueError('executoi mode wrong')
 
-            if prompt.lower().split()[-1] in ["google"]:
-                from pyopengenai.researcher_ai.main.researcher import AiResearcher
-                from pyopengenai.researcher_ai.main.llm_service.base import LLMPrompt
-
-                researcher = AiResearcher()
+            if prompt.lower().split()[-1] in ["google","bing"]:
                 question = self.filter_prompts(prompt)
                 print(f"Question: {question}")
-                content,urls = researcher.get_query_content(query=question,
-                                                       max_urls=2,max_articles=2,
-                                                       return_urls = True)
+
+                from pyopengenai.researcher_ai.main.llm_service.base import LLMPrompt
+                # content,urls = self.get_context_version1(question=question)
+                content,urls = self.get_context_version2(question=question)
+
                 context = "\n".join(content)
+
                 logger.info(f"URLS: {urls}")
                 runner = LLMPrompt(template="""
                 You are Expert summarizer, given user question and context understand and provide using context only.
@@ -337,9 +349,8 @@ class SpotlightLLM(QWidget):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = SpotlightLLM(
-        # execution_mode="GPU",
-        # models=["qwen2:7b-instruct"]
-        models = ['qwen2:0.5b']
+        execution_mode="GPU",
+        models=["qwen2:7b-instruct"]
     )
     ex.show()
     sys.exit(app.exec_())
