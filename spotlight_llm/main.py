@@ -7,6 +7,9 @@ import logging
 import time
 import os
 
+from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_ollama import ChatOllama
+
 os.environ['TF_ENABLE_ONEDNN_OPTS']='0'
 from datetime import datetime
 from PyQt5.QtWidgets import QApplication, QWidget, QLineEdit, QVBoxLayout, QTextEdit, QDesktopWidget, QHBoxLayout, QComboBox
@@ -19,7 +22,8 @@ from pyopengenai import CustomChatOllama
 # Register QTextCursor for use in signals
 from PyQt5.QtCore import QMetaType
 
-from universe_prompt import UP
+from universe_prompt import PROMPTS
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -40,7 +44,7 @@ class StreamHandler(QObject):
     def on_llm_end(self, response, **kwargs):
         self.response_callback(self.full_response)
 
-DEFAULT_MODELS: list = ["qwen2:1.5b", "gemma2:2b"]
+DEFAULT_MODELS: list = ["qwen2.5:0.5b-instruct", "qwen2.5:1.5b-instruct"]
 
 class SpotlightLLM(QWidget):
     def __init__(self, models:list = None, execution_mode="Local"):
@@ -184,7 +188,16 @@ class SpotlightLLM(QWidget):
         self.result_area.ensureCursorVisible()
 
     def add_universe_prompt(self,prompt):
-        return UP + f"\n User Question : {prompt}"
+        return PROMPTS.CLAUDE_SYSTEM_PROMPT + f"\n User Question : {prompt}"
+
+    def add_messages_prompt(self,prompt):
+        return [
+            # {"role": "system","content": CLAUDE_SYSTEM_PROMPT},
+            # SystemMessage(content=CLAUDE_SYSTEM_PROMPT),
+            SystemMessage(content=PROMPTS.BASIC_SYSTEM_PROMPT),
+            # {"role": "user","content": prompt}
+            HumanMessage(content = prompt)
+        ]
 
     def format_results_multi_agent(self, results):
         output = []
@@ -229,23 +242,36 @@ class SpotlightLLM(QWidget):
         return content,urls
 
     def get_context_version2(self,question=None):
-        from pyopengenai.query_based_content_retrieval import query_based_content_retrieval
-        content,urls = query_based_content_retrieval(query=question,topk=25,
+        from pyopengenai.query_master.search_retriever import SearchRetriever
+        retriever = SearchRetriever()
+        print('@@@@')
+        content,urls = retriever.query_based_content_retrieval(query=question,topk=25,
                                                      return_urls=True)
+        print(urls)
         return content,urls
-    def get_response(self, prompt):
-        prompt = self.add_universe_prompt(prompt)
+    def get_response(self, user_query):
+        prompt = self.add_universe_prompt(user_query)
         logging.debug(f"Starting response generation in {self.execution_mode} mode")
         stream_handler = StreamHandler(self.save_interaction)
         stream_handler.new_token_signal.connect(self.update_result_area)
 
         try:
             if self.execution_mode == "Local":
-                llm = Ollama(model=self.current_model)
+                # llm = ChatOllama(model=self.current_model,temperature = 0,num_predict = 8000)
+                llm = ChatOllama(
+                    model=self.current_model,
+                    temperature=0,
+                    num_predict=8000,
+                    num_ctx=4096,  # Increase context window
+                    num_thread=4,  # Increase number of threads
+                    repeat_penalty=1.1,  # Adjust repeat penalty
+                    top_k=40,  # Adjust top-k sampling
+                    top_p=0.9,  # Adjust top-p sampling
+                )
             elif self.execution_mode == "GPU":
                 llm = CustomChatOllama(model=self.current_model, base_url="http://192.168.162.49:8888")
             else:
-                raise ValueError('executoi mode wrong')
+                raise ValueError('execution mode wrong')
 
             if prompt.lower().split()[-1] in ["google","bing"]:
                 question = self.filter_prompts(prompt)
@@ -286,6 +312,8 @@ class SpotlightLLM(QWidget):
             else:
                 # GPU mode
                 # llm = ChatOllama(model="qwen2:0.5b")
+                prompt = self.add_messages_prompt(user_query)
+                print(self.execution_mode)
                 for chunk in llm.stream(prompt):
                     stream_handler.on_llm_new_token(chunk.content)
 
@@ -350,7 +378,7 @@ if __name__ == '__main__':
     app = QApplication(sys.argv)
     ex = SpotlightLLM(
         execution_mode="GPU",
-        models=["qwen2:7b-instruct"]
+        # models=["qwen2.5:7b-instruct"]
     )
     ex.show()
     sys.exit(app.exec_())
